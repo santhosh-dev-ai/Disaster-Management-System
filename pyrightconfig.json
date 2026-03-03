@@ -1,0 +1,10 @@
+{
+    "extraPaths": [
+        "./backend"
+    ],
+    "venvPath": "./backend",
+    "venv": "venv",
+    "pythonVersion": "3.14",
+    "reportMissingImports": false,
+    "reportMissingModuleSource": false
+}

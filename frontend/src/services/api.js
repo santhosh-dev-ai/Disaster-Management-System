@@ -1,0 +1,74 @@
+import axios from 'axios';
+
+const API_BASE = '/api';
+export const WS_BASE = `ws://${window.location.host}/ws`;
+
+const api = axios.create({
+    baseURL: API_BASE,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+// Handle auth errors
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+        return Promise.reject(error);
+    }
+);
+
+// ─── Auth API ────────────────────────────────────────────
+export const authAPI = {
+    login: (data) => api.post('/auth/login', data),
+    register: (data) => api.post('/auth/register', data),
+    getMe: () => api.get('/auth/me'),
+    updateMe: (data) => api.put('/auth/me', data),
+    getUsers: () => api.get('/auth/users'),
+    updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
+};
+
+// ─── Alerts API ──────────────────────────────────────────
+export const alertsAPI = {
+    getAll: (params) => api.get('/alerts/', { params }),
+    getById: (id) => api.get(`/alerts/${id}`),
+    create: (data) => api.post('/alerts/', data),
+    update: (id, data) => api.put(`/alerts/${id}`, data),
+    delete: (id) => api.delete(`/alerts/${id}`),
+};
+
+// ─── Resources API ───────────────────────────────────────
+export const resourcesAPI = {
+    getAll: (params) => api.get('/resources/', { params }),
+    getById: (id) => api.get(`/resources/${id}`),
+    getStats: () => api.get('/resources/stats'),
+    create: (data) => api.post('/resources/', data),
+    update: (id, data) => api.put(`/resources/${id}`, data),
+    delete: (id) => api.delete(`/resources/${id}`),
+};
+
+// ─── Disasters API ───────────────────────────────────────
+export const disastersAPI = {
+    getZones: (params) => api.get('/disasters/zones', { params }),
+    createZone: (data) => api.post('/disasters/zones', data),
+    getEvents: (params) => api.get('/disasters/events', { params }),
+    createEvent: (data) => api.post('/disasters/events', data),
+    predict: (data) => api.post('/disasters/predict', data),
+    getStats: () => api.get('/disasters/stats'),
+};
+
+export default api;
