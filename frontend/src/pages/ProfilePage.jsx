@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api';
+import { authAPI, geoAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const ROLE_CONFIG = {
@@ -28,6 +28,30 @@ export default function ProfilePage() {
 
     const [saving, setSaving] = useState(false);
     const [changingPassword, setChangingPassword] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [detectingLoc, setDetectingLoc] = useState(false);
+
+    const detectLocation = () => {
+        if (!navigator.geolocation) { toast.error('Geolocation not supported'); return; }
+        setDetectingLoc(true);
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const { latitude, longitude } = pos.coords;
+                try {
+                    const res = await geoAPI.reverse(latitude, longitude);
+                    const name = res.data?.display_name || res.data?.name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                    setProfileForm((f) => ({ ...f, location: name, latitude: latitude.toString(), longitude: longitude.toString() }));
+                    toast.success('Location detected!');
+                } catch {
+                    setProfileForm((f) => ({ ...f, latitude: latitude.toString(), longitude: longitude.toString() }));
+                    toast.success('Coordinates captured');
+                } finally {
+                    setDetectingLoc(false);
+                }
+            },
+            () => { toast.error('Could not get location'); setDetectingLoc(false); }
+        );
+    };
 
     const role = user?.role || 'citizen';
     const roleStyle = ROLE_CONFIG[role] || ROLE_CONFIG.citizen;
@@ -133,11 +157,26 @@ export default function ProfilePage() {
                             </div>
                         ))}
                     </div>
+
+                    {/* Edit / Cancel toggle */}
+                    <button
+                        onClick={() => setIsEditing((v) => !v)}
+                        className={isEditing ? 'btn-outline' : 'btn-primary'}
+                        style={{ width: '100%', justifyContent: 'center', padding: '10px', marginTop: '8px' }}
+                    >
+                        {isEditing ? '✕ Cancel' : '✏️ Edit Profile'}
+                    </button>
                 </div>
 
                 {/* ─── Edit Forms ────────────────────── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
+                {!isEditing && (
+                    <div className="card" style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', borderStyle: 'dashed', opacity: 0.7 }}>
+                        Click <strong>Edit Profile</strong> on the left to update your information.
+                    </div>
+                )}
+                {isEditing && (
+                    <>
                     {/* Profile Info */}
                     <div className="card">
                         <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
@@ -166,38 +205,30 @@ export default function ProfilePage() {
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <label className="form-label">Location</label>
-                                    <input
-                                        className="form-input"
-                                        value={profileForm.location}
-                                        onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}
-                                        placeholder="City, Country"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="form-label">Latitude</label>
-                                    <input
-                                        className="form-input"
-                                        type="number"
-                                        step="any"
-                                        min="-90"
-                                        max="90"
-                                        value={profileForm.latitude}
-                                        onChange={(e) => setProfileForm({ ...profileForm, latitude: e.target.value })}
-                                        placeholder="e.g. 40.7128"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="form-label">Longitude</label>
-                                    <input
-                                        className="form-input"
-                                        type="number"
-                                        step="any"
-                                        min="-180"
-                                        max="180"
-                                        value={profileForm.longitude}
-                                        onChange={(e) => setProfileForm({ ...profileForm, longitude: e.target.value })}
-                                        placeholder="e.g. -74.0060"
-                                    />
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input
+                                            className="form-input"
+                                            style={{ flex: 1 }}
+                                            value={profileForm.location}
+                                            onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}
+                                            placeholder="City, Country"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={detectLocation}
+                                            disabled={detectingLoc}
+                                            className="btn-outline"
+                                            style={{ whiteSpace: 'nowrap', padding: '0 14px', fontSize: '12px' }}
+                                            title="Auto-detect your location"
+                                        >
+                                            {detectingLoc ? '⏳' : '📍 Auto-detect'}
+                                        </button>
+                                    </div>
+                                    {profileForm.latitude && profileForm.longitude && (
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                            Coordinates: {parseFloat(profileForm.latitude).toFixed(5)}, {parseFloat(profileForm.longitude).toFixed(5)}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <button
@@ -263,6 +294,8 @@ export default function ProfilePage() {
                         </form>
                     </div>
 
+                    </>
+                )}
                 </div>
             </div>
         </div>

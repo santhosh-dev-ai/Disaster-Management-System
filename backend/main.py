@@ -8,6 +8,9 @@ from routes.auth_routes import router as auth_router
 from routes.alert_routes import router as alert_router
 from routes.resource_routes import router as resource_router
 from routes.disaster_routes import router as disaster_router
+from routes.earthquake_routes import router as earthquake_router
+from routes.geocode_routes import router as geocode_router
+from routes.responder_routes import router as responder_router
 from services.websocket_manager import manager
 from config import get_settings
 
@@ -25,7 +28,13 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,6 +45,9 @@ app.include_router(auth_router)
 app.include_router(alert_router)
 app.include_router(resource_router)
 app.include_router(disaster_router)
+app.include_router(earthquake_router)
+app.include_router(geocode_router)
+app.include_router(responder_router)
 
 
 # ─── Root Endpoint ───────────────────────────────────────────

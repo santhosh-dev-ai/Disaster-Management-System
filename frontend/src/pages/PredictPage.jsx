@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { disastersAPI } from '../services/api';
+import { useState, useEffect, useRef } from 'react';
+import { disastersAPI, geoAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const RISK_COLORS = {
@@ -10,27 +10,67 @@ const RISK_COLORS = {
     Minimal: { color: '#22d3ee', bg: 'rgba(34,211,238,0.12)' },
 };
 
-const PRESETS = [
-    { name: 'Mumbai, India', lat: 19.076, lon: 72.877 },
-    { name: 'San Francisco, USA', lat: 37.774, lon: -122.419 },
-    { name: 'Tokyo, Japan', lat: 35.676, lon: 139.650 },
-    { name: 'Miami, USA', lat: 25.761, lon: -80.191 },
-    { name: 'Manila, Philippines', lat: 14.599, lon: 120.984 },
-    { name: 'Dhaka, Bangladesh', lat: 23.810, lon: 90.412 },
-    { name: 'Istanbul, Turkey', lat: 41.008, lon: 28.978 },
-    { name: 'Sydney, Australia', lat: -33.868, lon: 151.209 },
-];
-
 export default function PredictPage() {
+    const [locationQuery, setLocationQuery] = useState('');
+    const [suggestions, setSuggestions] = useState([]);
+    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [showSuggestions, setShowSuggestions] = useState(false);
     const [latitude, setLatitude] = useState('');
     const [longitude, setLongitude] = useState('');
     const [disasterType, setDisasterType] = useState('');
     const [prediction, setPrediction] = useState(null);
     const [loading, setLoading] = useState(false);
     const [history, setHistory] = useState([]);
+    const [hotspots, setHotspots] = useState([]);
+    const [hotspotsLoading, setHotspotsLoading] = useState(true);
+    const debounceRef = useRef(null);
+
+    // Load live hotspots on mount
+    useEffect(() => {
+        geoAPI.hotspots()
+            .then((res) => setHotspots(res.data || []))
+            .catch(() => {})
+            .finally(() => setHotspotsLoading(false));
+    }, []);
+
+    // Debounced geocode search
+    useEffect(() => {
+        if (!locationQuery || locationQuery.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+        clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(async () => {
+            try {
+                const res = await geoAPI.search(locationQuery);
+                setSuggestions(res.data || []);
+                setShowSuggestions(true);
+            } catch { }
+        }, 400);
+    }, [locationQuery]);
+
+    const selectSuggestion = (s) => {
+        setSelectedLocation(s);
+        setLocationQuery(s.name);
+        setLatitude(s.latitude.toString());
+        setLongitude(s.longitude.toString());
+        setSuggestions([]);
+        setShowSuggestions(false);
+    };
+
+    const selectHotspot = (h) => {
+        setSelectedLocation(h);
+        setLocationQuery(h.name);
+        setLatitude(h.latitude.toString());
+        setLongitude(h.longitude.toString());
+    };
 
     const handlePredict = async (e) => {
         e.preventDefault();
+        if (!latitude || !longitude) {
+            toast.error('Please select a location first');
+            return;
+        }
         setLoading(true);
         try {
             const payload = {
@@ -39,18 +79,14 @@ export default function PredictPage() {
             };
             if (disasterType) payload.disaster_type = disasterType;
             const res = await disastersAPI.predict(payload);
-            setPrediction(res.data);
-            setHistory((prev) => [res.data, ...prev.slice(0, 4)]);
+            const result = { ...res.data, locationName: selectedLocation?.name || locationQuery };
+            setPrediction(result);
+            setHistory((prev) => [result, ...prev.slice(0, 4)]);
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Prediction failed');
         } finally {
             setLoading(false);
         }
-    };
-
-    const selectPreset = (preset) => {
-        setLatitude(preset.lat.toString());
-        setLongitude(preset.lon.toString());
     };
 
     const riskStyle = prediction ? RISK_COLORS[prediction.risk_level] || RISK_COLORS.Medium : null;
@@ -71,18 +107,53 @@ export default function PredictPage() {
                     {/* Input Panel */}
                     <div>
                         <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
-                            <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '16px' }}>📍 Location Input</h3>
+                            <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '16px' }}>📍 Location Search</h3>
                             <form onSubmit={handlePredict}>
-                                <div className="form-row" style={{ marginBottom: '16px' }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label>Latitude</label>
-                                        <input className="input-field" type="number" step="any" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="e.g. 19.076" required />
-                                    </div>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label>Longitude</label>
-                                        <input className="input-field" type="number" step="any" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="e.g. 72.877" required />
-                                    </div>
+                                {/* Location Name Search */}
+                                <div className="form-group" style={{ marginBottom: '16px', position: 'relative' }}>
+                                    <label>Search Location</label>
+                                    <input
+                                        className="input-field"
+                                        type="text"
+                                        value={locationQuery}
+                                        onChange={(e) => { setLocationQuery(e.target.value); setSelectedLocation(null); }}
+                                        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                        placeholder="Type a city, region or country..."
+                                        autoComplete="off"
+                                    />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <div style={{
+                                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                                            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                                            borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                                            overflow: 'hidden', marginTop: '4px',
+                                        }}>
+                                            {suggestions.map((s, i) => (
+                                                <div key={i}
+                                                    onClick={() => selectSuggestion(s)}
+                                                    style={{
+                                                        padding: '10px 14px', cursor: 'pointer', fontSize: '13px',
+                                                        color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)',
+                                                    }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    <div style={{ fontWeight: 600 }}>{s.name}</div>
+                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.display_name}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
+
+                                {/* Coords preview */}
+                                {selectedLocation && (
+                                    <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', marginBottom: '14px', fontSize: '12px', color: '#6ee7b7' }}>
+                                        ✓ {selectedLocation.name} &bull; {parseFloat(latitude).toFixed(4)}°, {parseFloat(longitude).toFixed(4)}°
+                                    </div>
+                                )}
+
                                 <div className="form-group">
                                     <label>Disaster Type (Optional)</label>
                                     <select className="select-field" value={disasterType} onChange={(e) => setDisasterType(e.target.value)}>
@@ -95,27 +166,32 @@ export default function PredictPage() {
                                         <option value="tornado">🌪️ Tornado</option>
                                     </select>
                                 </div>
-                                <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
+                                <button type="submit" className="btn-primary" disabled={loading || !latitude}
+                                    style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
                                     {loading ? '⏳ Analyzing...' : '🔮 Predict Risk'}
                                 </button>
                             </form>
                         </div>
 
-                        {/* Quick Presets */}
+                        {/* Live Hotspots */}
                         <div className="glass-card" style={{ padding: '20px' }}>
-                            <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '12px' }}>⚡ Quick Locations</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                {PRESETS.map((p) => (
-                                    <button
-                                        key={p.name}
-                                        onClick={() => selectPreset(p)}
-                                        className="btn-outline"
-                                        style={{ padding: '8px', fontSize: '12px', textAlign: 'left' }}
-                                    >
-                                        📍 {p.name}
-                                    </button>
-                                ))}
-                            </div>
+                            <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '12px' }}>⚡ Live Hotspots <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--text-muted)' }}>(from USGS)</span></h3>
+                            {hotspotsLoading ? (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>⏳ Loading live data...</p>
+                            ) : hotspots.length === 0 ? (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>No major events right now</p>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                    {hotspots.map((h, i) => (
+                                        <button key={i} onClick={() => selectHotspot(h)}
+                                            className="btn-outline"
+                                            style={{ padding: '7px 10px', fontSize: '11px', textAlign: 'left', lineHeight: 1.3 }}>
+                                            <div style={{ fontWeight: 700, color: h.severity === 'Critical' ? '#ef4444' : h.severity === 'High' ? '#f59e0b' : 'var(--accent-primary)' }}>M{h.magnitude} {h.severity}</div>
+                                            <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px' }}>📍 {h.name}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -207,7 +283,7 @@ export default function PredictPage() {
                                 {history.slice(1).map((h, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(99,102,241,0.07)' }}>
                                         <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                            📍 {h.latitude.toFixed(3)}, {h.longitude.toFixed(3)}
+                                            📍 {h.locationName || `${h.latitude?.toFixed(2)}°, ${h.longitude?.toFixed(2)}°`}
                                         </span>
                                         <span style={{ fontSize: '12px', fontWeight: 700, color: (RISK_COLORS[h.risk_level] || RISK_COLORS.Medium).color }}>
                                             {h.risk_level} ({(h.risk_score * 100).toFixed(0)}%)

@@ -24,9 +24,16 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
+            const url = error.config?.url || '';
+            // Don't redirect on auth endpoints — let the page handle the error
+            const isAuthEndpoint = url.includes('/auth/login')
+                || url.includes('/auth/register')
+                || url.includes('/auth/me');
+            if (!isAuthEndpoint) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.dispatchEvent(new CustomEvent('auth:session-expired'));
+            }
         }
         return Promise.reject(error);
     }
@@ -69,6 +76,32 @@ export const disastersAPI = {
     createEvent: (data) => api.post('/disasters/events', data),
     predict: (data) => api.post('/disasters/predict', data),
     getStats: () => api.get('/disasters/stats'),
+};
+
+// ─── Earthquakes API (USGS real-time) ────────────────────
+export const earthquakeAPI = {
+    getAll: (minMag = 2.5) => api.get(`/earthquakes?min_magnitude=${minMag}`),
+    getSeverity: (params) => api.get('/earthquakes/severity', { params }),
+};
+
+// ─── Geocoding API ────────────────────────────────────────
+export const geoAPI = {
+    search: (q) => api.get(`/geo/search?q=${encodeURIComponent(q)}`),
+    reverse: (lat, lon) => api.get(`/geo/reverse?lat=${lat}&lon=${lon}`),
+    hotspots: () => api.get('/geo/hotspots'),
+};
+
+// ─── Responder API ────────────────────────────────────────
+export const responderAPI = {
+    getMissions: () => api.get('/responder/missions'),
+    updateMission: (id, data) => api.put(`/responder/missions/${id}`, data),
+    assignMission: (data) => api.post('/responder/missions/assign', data),
+    getRecommendation: (params) => api.get('/responder/ai-recommendation', { params }),
+    getResources: () => api.get('/responder/resources'),
+    updateLocation: (data) => api.post('/responder/location', data),
+    getLocation: () => api.get('/responder/location'),
+    postUpdate: (data) => api.post('/responder/update', data),
+    getLogs: () => api.get('/responder/logs'),
 };
 
 export default api;

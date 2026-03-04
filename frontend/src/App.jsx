@@ -12,6 +12,7 @@ import PredictPage from './pages/PredictPage';
 import EventsPage from './pages/EventsPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
+import EmailCallbackPage from './pages/EmailCallbackPage';
 
 function ProtectedRoute({ children, roles }) {
   const { isAuthenticated, user } = useAuth();
@@ -36,6 +37,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
+      <Route path="/auth/callback" element={<EmailCallbackPage />} />
 
       <Route path="/dashboard" element={
         <ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>
