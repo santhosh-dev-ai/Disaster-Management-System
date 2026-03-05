@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+.env
+=======
 node_modules
 .env
 backend/.env
 dist
+>>>>>>> 5b978dcccef803d087e31d6edc0b3a3c959ba156

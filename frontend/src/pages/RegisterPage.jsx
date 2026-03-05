@@ -6,7 +6,6 @@ import toast from 'react-hot-toast';
 const ROLES = [
     { key: 'citizen', label: 'Citizen', icon: '👤', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
     { key: 'responder', label: 'Responder', icon: '🚒', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-    { key: 'admin', label: 'Admin', icon: '🛡️', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 ];
 
 export default function RegisterPage() {
@@ -41,8 +40,7 @@ export default function RegisterPage() {
             } else {
                 toast.success('Account created successfully!');
                 const role = result.user?.role;
-                if (role === 'admin') navigate('/users');
-                else if (role === 'responder') navigate('/events');
+                if (role === 'responder') navigate('/events');
                 else navigate('/dashboard');
             }
         } else {

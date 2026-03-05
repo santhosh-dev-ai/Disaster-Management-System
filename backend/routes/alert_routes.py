@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from database import SupabaseClient, get_supabase
 from models import ALERTS_TABLE
 from schemas import AlertCreate, AlertUpdate, AlertResponse
-from auth import get_current_user
+from auth import get_current_user, require_admin
 from typing import Optional
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
@@ -46,12 +46,9 @@ async def get_alert(alert_id: int, sb: SupabaseClient = Depends(get_supabase)):
 async def create_alert(
     alert_data: AlertCreate,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    current_admin: dict = Depends(require_admin),
 ):
-    """Create a new alert (Admin/Responder only)."""
-    if current_user.get("role") not in ["admin", "responder"]:
-        raise HTTPException(status_code=403, detail="Only admins and responders can create alerts")
-
+    """Create a new alert (Admin only)."""
     new_alert_data = {
         "title": alert_data.title,
         "description": alert_data.description,
@@ -61,7 +58,7 @@ async def create_alert(
         "longitude": alert_data.longitude,
         "radius_km": alert_data.radius_km,
         "location_name": alert_data.location_name,
-        "created_by": current_user["id"],
+        "created_by": None,  # admin table id — not a FK to users
         "is_active": True,
     }
     if alert_data.expires_at:
@@ -80,12 +77,9 @@ async def update_alert(
     alert_id: int,
     alert_data: AlertUpdate,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
-    """Update an alert (Admin/Responder only)."""
-    if current_user.get("role") not in ["admin", "responder"]:
-        raise HTTPException(status_code=403, detail="Only admins and responders can update alerts")
-
+    """Update an alert (Admin only)."""
     # Check alert exists
     existing = sb.table(ALERTS_TABLE).select("id").eq("id", alert_id).execute()
     if not existing.data:
@@ -108,12 +102,9 @@ async def update_alert(
 async def delete_alert(
     alert_id: int,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
     """Delete an alert (Admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
     existing = sb.table(ALERTS_TABLE).select("id").eq("id", alert_id).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Alert not found")

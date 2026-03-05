@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from database import SupabaseClient, get_supabase
 from models import RESOURCES_TABLE
 from schemas import ResourceCreate, ResourceUpdate, ResourceResponse
-from auth import get_current_user
+from auth import get_current_user, require_admin
 from typing import Optional
 
 router = APIRouter(prefix="/api/resources", tags=["Resources"])
@@ -60,12 +60,9 @@ async def get_resource(resource_id: int, sb: SupabaseClient = Depends(get_supaba
 async def create_resource(
     resource_data: ResourceCreate,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
     """Create a new resource (Admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
     new_resource_data = {
         "name": resource_data.name,
         "resource_type": resource_data.resource_type,
@@ -90,12 +87,9 @@ async def update_resource(
     resource_id: int,
     resource_data: ResourceUpdate,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
-    """Update a resource (Admin/Responder)."""
-    if current_user.get("role") not in ["admin", "responder"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-
+    """Update a resource (Admin only)."""
     existing = sb.table(RESOURCES_TABLE).select("id").eq("id", resource_id).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")
@@ -116,12 +110,9 @@ async def update_resource(
 async def delete_resource(
     resource_id: int,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
     """Delete a resource (Admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
     existing = sb.table(RESOURCES_TABLE).select("id").eq("id", resource_id).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Resource not found")

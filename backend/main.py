@@ -11,6 +11,7 @@ from routes.disaster_routes import router as disaster_router
 from routes.earthquake_routes import router as earthquake_router
 from routes.geocode_routes import router as geocode_router
 from routes.responder_routes import router as responder_router
+from routes.admin_routes import router as admin_router
 from services.websocket_manager import manager
 from config import get_settings
 
@@ -44,6 +45,7 @@ app.include_router(disaster_router)
 app.include_router(earthquake_router)
 app.include_router(geocode_router)
 app.include_router(responder_router)
+app.include_router(admin_router)
 
 
 # ─── Root Endpoint ───────────────────────────────────────────

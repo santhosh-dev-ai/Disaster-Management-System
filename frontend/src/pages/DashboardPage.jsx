@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { alertsAPI, resourcesAPI, disastersAPI } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import DisasterMap from '../components/DisasterMap';
 
 const SEVERITY_COLORS = {
     critical: '#ef4444',
@@ -286,6 +287,11 @@ export default function DashboardPage() {
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* ── Global Disaster Monitoring Map ── */}
+                <div className="glass-card" style={{ padding: '24px', marginTop: '24px' }}>
+                    <DisasterMap />
                 </div>
             </div>
         </div>
