@@ -26,14 +26,11 @@ app = FastAPI(
 )
 
 # CORS Middleware
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-        "https://disaster-management-system-one.vercel.app"
-    ],
+    allow_origins=["*"],   # allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
