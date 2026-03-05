@@ -2,14 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from database import SupabaseClient, get_supabase
 from models import USERS_TABLE
 from schemas import UserRegister, UserLogin, UserResponse, Token, UserUpdate, UserAdminUpdate
-from auth import verify_password, get_password_hash, create_access_token, get_current_user
+from auth import (
+    verify_password, get_password_hash, create_access_token, get_current_user,
+    supabase_sign_up, supabase_sign_in, EmailNotConfirmedError,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserRegister, sb: SupabaseClient = Depends(get_supabase)):
-    """Register a new user."""
+    """Register a new user. Returns pending_verification when email confirmation is required."""
     # Check if email already exists
     existing = sb.table(USERS_TABLE).select("id").eq("email", user_data.email).execute()
     if existing.data:
@@ -26,7 +29,14 @@ async def register(user_data: UserRegister, sb: SupabaseClient = Depends(get_sup
             detail="Username already taken"
         )
 
-    # Create user
+    # Attempt to create in Supabase Auth (sends confirmation email)
+    auth_result = supabase_sign_up(user_data.email, user_data.password)
+    email_pending = bool(
+        auth_result.get("confirmation_sent_at")
+        and not auth_result.get("email_confirmed_at")
+    )
+
+    # Insert into our users table
     new_user_data = {
         "email": user_data.email,
         "username": user_data.username,
@@ -46,9 +56,12 @@ async def register(user_data: UserRegister, sb: SupabaseClient = Depends(get_sup
 
     new_user = response.data[0]
 
-    # Generate token
-    access_token = create_access_token(data={"sub": new_user["id"], "role": new_user["role"]})
+    # If Supabase sent a confirmation email, tell the frontend to wait
+    if email_pending:
+        return {"status": "pending_verification", "email": user_data.email}
 
+    # Otherwise (fallback / email already confirmed) return a token immediately
+    access_token = create_access_token(data={"sub": new_user["id"], "role": new_user["role"]})
     return Token(
         access_token=access_token,
         token_type="bearer",
@@ -82,6 +95,19 @@ async def login(user_data: UserLogin, sb: SupabaseClient = Depends(get_supabase)
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated"
         )
+
+    # Check email confirmation via Supabase Auth (best-effort — don't fail on unavailability)
+    try:
+        supabase_sign_in(user_data.email, user_data.password)
+    except EmailNotConfirmedError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Please verify your email before logging in. Check your inbox.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception:
+        # Supabase Auth unavailable or user not in Supabase Auth — local auth already verified above
+        pass
 
     access_token = create_access_token(data={"sub": user["id"], "role": user["role"]})
 
