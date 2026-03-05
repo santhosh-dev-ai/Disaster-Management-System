@@ -105,3 +105,53 @@ export const responderAPI = {
 };
 
 export default api;
+
+// ─── Admin API (uses separate admin_token) ────────────────
+// All requests carry Authorization: Bearer <admin_token>.
+
+const adminApi = axios.create({
+    baseURL: API_BASE,
+    headers: { 'Content-Type': 'application/json' },
+});
+
+adminApi.interceptors.request.use((config) => {
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+adminApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_user');
+            window.dispatchEvent(new CustomEvent('admin:session-expired'));
+        }
+        return Promise.reject(error);
+    }
+);
+
+export const adminAPI = {
+    // Auth
+    login:           (data)       => adminApi.post('/admin/login', data),
+    getMe:           ()           => adminApi.get('/admin/me'),
+    // Users
+    getUsers:        ()           => adminApi.get('/admin/users'),
+    getResponders:   ()           => adminApi.get('/admin/users/responders'),
+    updateUser:      (id, data)   => adminApi.put(`/admin/users/${id}`, data),
+    deactivateUser:  (id)         => adminApi.delete(`/admin/users/${id}`),
+    // Responder approval
+    approveResponder: (id)        => adminApi.post(`/admin/responders/${id}/approve`),
+    revokeResponder:  (id)        => adminApi.post(`/admin/responders/${id}/revoke`),
+    // Alerts
+    getAlerts:       ()           => adminApi.get('/admin/alerts'),
+    deleteAlert:     (id)         => adminApi.delete(`/admin/alerts/${id}`),
+    // Resources
+    getResources:    ()           => adminApi.get('/admin/resources'),
+    deleteResource:  (id)         => adminApi.delete(`/admin/resources/${id}`),
+};
+
+export { adminApi };

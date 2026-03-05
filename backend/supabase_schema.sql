@@ -22,6 +22,33 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ
 );
 
+-- ─── Admins Table (separate, isolated from users) ────────────
+-- Admin accounts are inserted MANUALLY via the Supabase SQL Editor.
+-- They NEVER register through the public /api/auth/register endpoint.
+--
+-- To insert the first admin, run in the Supabase SQL Editor:
+--
+--   Step 1 – Generate a bcrypt hash in Python:
+--     from passlib.context import CryptContext
+--     print(CryptContext(schemes=["bcrypt"]).hash("YourPassword"))
+--
+--   Step 2 – Insert the admin row:
+--     INSERT INTO admins (email, username, hashed_password)
+--     VALUES ('admin@example.com', 'superadmin', '<paste_bcrypt_hash>');
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS admins (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for fast login lookups
+CREATE UNIQUE INDEX IF NOT EXISTS admins_email_idx ON admins (email);
+
+
 -- ─── Alerts Table ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS alerts (
     id BIGSERIAL PRIMARY KEY,

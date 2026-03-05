@@ -7,12 +7,13 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from database import SupabaseClient, get_supabase
-from models import USERS_TABLE
+from models import USERS_TABLE, ADMINS_TABLE
 from config import get_settings
 
 settings = get_settings()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+admin_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
 
 _SUPABASE_AUTH = settings.SUPABASE_URL.rstrip("/") + "/auth/v1" if settings.SUPABASE_URL else ""
 _ANON_HDR = {
@@ -160,3 +161,41 @@ def require_role(*roles):
             )
         return current_user
     return role_checker
+
+
+async def require_admin(
+    token: str = Depends(admin_oauth2_scheme),
+    sb: SupabaseClient = Depends(get_supabase),
+) -> dict:
+    """
+    FastAPI dependency that validates an admin JWT token.
+
+    Admin tokens carry ``{"sub": str(admin_id), "type": "admin"}`` in the
+    payload.  The admin must exist and be active in the ``admins`` table.
+    Regular user tokens (even with role='admin') are rejected.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Admin authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        admin_id: str | None = payload.get("sub")
+        token_type: str | None = payload.get("type")
+        if admin_id is None or token_type != "admin":
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    response = sb.table(ADMINS_TABLE).select("*").eq("id", int(admin_id)).execute()
+    if not response.data:
+        raise credentials_exception
+
+    admin = response.data[0]
+    if not admin.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin account is deactivated",
+        )
+    return admin

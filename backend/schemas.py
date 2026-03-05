@@ -95,6 +95,35 @@ class UserAdminUpdate(BaseModel):
     full_name: Optional[str] = None
 
 
+# ─── Admin Auth Schemas ──────────────────────────────────────
+class AdminCreate(BaseModel):
+    email: EmailStr
+    username: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=8)
+
+
+class AdminLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class AdminResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AdminToken(BaseModel):
+    access_token: str
+    token_type: str
+    admin: AdminResponse
+
+
 # ─── Alert Schemas ───────────────────────────────────────────
 class AlertCreate(BaseModel):
     title: str = Field(..., max_length=300)

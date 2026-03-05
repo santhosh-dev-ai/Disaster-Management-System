@@ -43,6 +43,7 @@ class DisasterType(str, enum.Enum):
 
 # ─── Table Names ─────────────────────────────────────────────
 USERS_TABLE = "users"
+ADMINS_TABLE = "admins"
 ALERTS_TABLE = "alerts"
 RESOURCES_TABLE = "resources"
 DISASTER_ZONES_TABLE = "disaster_zones"

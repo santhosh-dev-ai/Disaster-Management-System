@@ -4,7 +4,7 @@ from models import USERS_TABLE
 from schemas import UserRegister, UserLogin, UserResponse, Token, UserUpdate, UserAdminUpdate
 from auth import (
     verify_password, get_password_hash, create_access_token, get_current_user,
-    supabase_sign_up, supabase_sign_in, EmailNotConfirmedError,
+    supabase_sign_up, supabase_sign_in, EmailNotConfirmedError, require_admin,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -13,6 +13,14 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserRegister, sb: SupabaseClient = Depends(get_supabase)):
     """Register a new user. Returns pending_verification when email confirmation is required."""
+    # Block admin role creation through public registration
+    if user_data.role.value == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts cannot be created through registration. "
+                   "Contact your system administrator.",
+        )
+
     # Check if email already exists
     existing = sb.table(USERS_TABLE).select("id").eq("email", user_data.email).execute()
     if existing.data:
@@ -127,12 +135,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 @router.get("/users", response_model=list[UserResponse])
 async def get_all_users(
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
     """Get all users (Admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
     response = sb.table(USERS_TABLE).select("*").execute()
     return [UserResponse(**u) for u in response.data]
 
@@ -180,12 +185,9 @@ async def admin_update_user(
     user_id: int,
     update_data: UserAdminUpdate,
     sb: SupabaseClient = Depends(get_supabase),
-    current_user: dict = Depends(get_current_user),
+    _admin: dict = Depends(require_admin),
 ):
     """Update a user's role or active status (Admin only)."""
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
     payload: dict = {}
     if update_data.role is not None:
         payload["role"] = update_data.role.value

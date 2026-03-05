@@ -13,6 +13,8 @@ import EventsPage from './pages/EventsPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
 import EmailCallbackPage from './pages/EmailCallbackPage';
+import AdminLoginPage from './pages/AdminLoginPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 function ProtectedRoute({ children, roles }) {
   const { isAuthenticated, user } = useAuth();
@@ -38,6 +40,10 @@ function AppRoutes() {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       <Route path="/auth/callback" element={<EmailCallbackPage />} />
+
+      {/* ── Admin routes (isolated, use admin_token) ── */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
 
       <Route path="/dashboard" element={
         <ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>
